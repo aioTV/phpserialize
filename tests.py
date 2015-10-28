@@ -32,8 +32,23 @@ class PhpSerializeTestCase(unittest.TestCase):
                          b'a:3:{i:0;i:7;i:1;i:8;i:2;i:9;}')
 
     def test_dumps_dict(self):
-        self.assertEqual(phpserialize.dumps({'a': 1, 'b': 2, 'c': 3}),
-                         b'a:3:{s:1:"a";i:1;s:1:"c";i:3;s:1:"b";i:2;}')
+        def sort_serialized(output):
+            """
+            Split up the serialized output and sort the contents
+            """
+            header_end_index = len(u'{a:n:{')
+            footer_begin_index = -1
+
+            serialized_header = output[0:header_end_index]
+            serialized_payload = output[header_end_index:footer_begin_index]
+            serialized_footer = output[footer_begin_index:]
+            return serialized_header, sorted(serialized_payload.split(b';')), serialized_footer
+
+        # As dicts are not ordered, we cannot have expectations on the serialization order
+        expected = sort_serialized(b'a:3:{s:1:"a";i:1;s:1:"c";i:3;s:1:"b";i:2;}')
+        output = sort_serialized(phpserialize.dumps({'a': 1, 'b': 2, 'c': 3}))
+
+        self.assertEqual(expected, output)
 
     def test_loads_dict(self):
         self.assertEqual(phpserialize.loads(b'a:3:{s:1:"a";i:1;s:1:"c";i:3;s:1:"b";i:2;}',
@@ -88,7 +103,7 @@ class PhpSerializeTestCase(unittest.TestCase):
         x = phpserialize.dumps(user, object_hook=dump_object_hook)
         y = phpserialize.loads(x, object_hook=load_object_hook,
                                decode_strings=True)
-        self.assert_(b'WP_User' in x)
+        self.assertTrue(b'WP_User' in x)
         self.assertEqual(type(y), type(user))
         self.assertEqual(y.username, user.username)
 
@@ -102,7 +117,7 @@ class PhpSerializeTestCase(unittest.TestCase):
     def test_session(self):
         data = b'foo|a:1:{s:1:"a";s:1:"b";}bar|a:1:{s:1:"c";s:1:"d";}'
         session = phpserialize.loads(data)
-        self.assertEqual(session, {'foo': {'a': 'b'}, 'bar': {'c': 'd'}})
+        self.assertEqual(session, {b'foo': {b'a': b'b'}, b'bar': {b'c': b'd'}})
 
     def test_loads_unicode_strings(self):
         data = u's:6:"Björk";'
